@@ -1,37 +1,36 @@
 from os import environ as env
-from platform import release
 import requests
 import urllib3
-
 from typing import Union
-
-import requests
 from requests import Response
-from sys import exit
 import json
 import time
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
-SERVER_URL=env['SERVER_URL']
-TOKEN=env['TOKEN']
-WORKSPACE_ID=env['WORKSPACE_ID']
+SERVER_URL = env["SERVER_URL"]
+TOKEN = env["TOKEN"]
+WORKSPACE_ID = env["WORKSPACE_ID"]
 
 urllib3.disable_warnings()
 
+
 def load_data(file_name):
     try:
-        with open(file_name, 'r') as file:
+        with open(file_name, "r") as file:
             data = json.load(file)
     except FileNotFoundError:
         # If file does not exist, initialize with an empty list
         data = []
-        with open(file_name, 'w') as file:
+        with open(file_name, "w") as file:
             json.dump(data, file)
     return data
+
+
 def save_data(data, file_name):
-    with open(file_name, 'w') as file:
+    with open(file_name, "w") as file:
         json.dump(data, file, indent=4)
 
 
@@ -44,12 +43,12 @@ def graphql_request(
     headers is the request headers
     special if true, will return just the response object
     """
-    json_payload = {'query': operation}
+    json_payload = {"query": operation}
     if not headers:
-        headers = {'Authorization': TOKEN}
+        headers = {"Authorization": TOKEN}
 
     if variables:
-        json_payload['variables'] = variables
+        json_payload["variables"] = variables
 
     response: Response = requests.post(
         f"https://houston.{SERVER_URL}/v1", json=json_payload, headers=headers
@@ -60,10 +59,11 @@ def graphql_request(
         raise Exception(graphql_result["errors"])
     if special:
         return response
-    if graphql_result['data']:
-        return graphql_result['data']
+    if graphql_result["data"]:
+        return graphql_result["data"]
 
-def create_deployment(label: str,executor: str,airflowVersion: str):
+
+def create_deployment(label: str, executor: str, airflowVersion: str):
     mutation = """
            mutation CreateDeployment(
             $workspaceUuid: Uuid!
@@ -104,19 +104,17 @@ def create_deployment(label: str,executor: str,airflowVersion: str):
             }
     """
     deployment_args = {
-    "workspaceUuid": WORKSPACE_ID,
-    "type": "airflow",
-    "label": label,
-    "releaseName": "",
-    "namespace": "",
-    "description": "CreateApi_k8s_image_01",
-    "airflowVersion": airflowVersion,
-    "runtimeVersion": "",
-    "executor": executor,
-    "dagDeployment": {
-        "type": "image"
-    },
-    "properties": {}
+        "workspaceUuid": WORKSPACE_ID,
+        "type": "airflow",
+        "label": label,
+        "releaseName": "",
+        "namespace": "",
+        "description": "CreateApi_k8s_image_01",
+        "airflowVersion": airflowVersion,
+        "runtimeVersion": "",
+        "executor": executor,
+        "dagDeployment": {"type": "image"},
+        "properties": {},
     }
     return graphql_request(operation=mutation, variables=deployment_args)[
         "createDeployment"
@@ -127,7 +125,8 @@ def test():
     for x in range(32):
         try:
             import random
-            file_name="deploy.json"
+
+            file_name = "deploy.json"
             executor_types = ["KubernetesExecutor", "CeleryExecutor"]
 
             random_executor = random.choice(executor_types)
@@ -135,25 +134,35 @@ def test():
             airflow = ["2.4.3"]
             random_airflow = random.choice(airflow)
             airflowVersion = str(random_airflow)
-            label = f'Deployment-{x:0>3}'
+            label = f"Deployment-{x:0>3}"
             data = load_data(file_name)
             for deployment in data:
                 if label in deployment:
                     print(f"Deployment with name '{label}' already exists.")
                     break
             else:
-                print(f"Deployment with name  '{label}' does not exist in the loaded data. Creating new deployment...")
-                result = create_deployment(label,executor,airflowVersion)
+                print(
+                    f"Deployment with name  '{label}' does not exist in the loaded data. Creating new deployment..."
+                )
+                result = create_deployment(label, executor, airflowVersion)
                 print(f'{result["label"]} just created.')
                 time.sleep(60)
                 # Add a new user
-                deployments_dict = {label: result["id"], "releaseName": result["releaseName"], "executor": executor, "airflowVersion": airflowVersion, "tag":""}
+                deployments_dict = {
+                    label: result["id"],
+                    "releaseName": result["releaseName"],
+                    "executor": executor,
+                    "airflowVersion": airflowVersion,
+                    "tag": "",
+                }
                 loaded_users = load_data(file_name)
                 loaded_users.append(deployments_dict)
                 save_data(loaded_users, file_name)
-                print('Finished sleeping. Next...')
+                print("Finished sleeping. Next...")
         except Exception as e:
             print("Error in creating deployment", e)
             exit(1)
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     test()
